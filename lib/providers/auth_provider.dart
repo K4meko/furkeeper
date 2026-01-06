@@ -1,8 +1,21 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:furkeeper/models/user.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-class AuthProvider with ChangeNotifier{
+
+class AuthProvider with ChangeNotifier {
+  final FlutterSecureStorage storage;
+
+  AuthProvider(this.storage){
+    FirebaseAuth.instance.userChanges().listen((User? user) {
+    if (user == null) {
+      print('User is currently signed out!');
+    } else {
+      print('User is signed in!');
+    }
+  });
+  }
+
   User? _user;
 
   User? get user => _user;
@@ -16,5 +29,4 @@ class AuthProvider with ChangeNotifier{
     _user = null;
     notifyListeners();
   }
-
 }
