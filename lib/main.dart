@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:furkeeper/others/themes.dart';
 import 'package:furkeeper/screens/auth/login_screen.dart';
 import 'package:furkeeper/screens/home_screen.dart'; // Import your HomeScreen
 import 'package:provider/provider.dart';
@@ -34,6 +35,10 @@ class MyApp extends StatelessWidget {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
         return MaterialApp(
+           debugShowCheckedModeBanner: false,
+         theme: AppTheme.lightTheme, // custom light theme
+         darkTheme: AppTheme.darkTheme, // custom dark theme
+       themeMode: ThemeMode.system, 
           home: authProvider.isAuthenticated ? HomeScreen() : LoginScreen(),
         );
       },
