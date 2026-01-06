@@ -6,15 +6,20 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class AuthProvider with ChangeNotifier {
   final FlutterSecureStorage storage;
 
-  AuthProvider(this.storage){
+
+  AuthProvider(this.storage) {
     FirebaseAuth.instance.userChanges().listen((User? user) {
-    if (user == null) {
-      print('User is currently signed out!');
-    } else {
-      print('User is signed in!');
-    }
-  });
+      _user = user;
+      if (user == null) {
+        print('User is currently signed out!');
+      } else {
+        print('User is signed in: ${user.email}');
+      }
+      notifyListeners();
+    });
   }
+  
+  bool get isAuthenticated => _user != null;
 
   User? _user;
 

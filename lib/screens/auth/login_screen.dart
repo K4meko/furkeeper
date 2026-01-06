@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:furkeeper/screens/auth/register_screen.dart';
 import 'package:furkeeper/viewmodels/loginviewmodel.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -9,9 +10,10 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-    String email = '';
+  String email = '';
   String password = '';
   final viewmodel = LoginViewModel();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -30,6 +32,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 border: OutlineInputBorder(),
               ),
               keyboardType: TextInputType.emailAddress,
+              onChanged: (value) {
+                setState(() {
+                  email = value;
+                });
+              },
             ),
             SizedBox(height: 16),
             TextField(
@@ -38,6 +45,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 border: OutlineInputBorder(),
               ),
               obscureText: true,
+              onChanged: (value) {
+                setState(() {
+                  password = value;
+                });
+              },
             ),
             SizedBox(height: 24),
             ElevatedButton(
@@ -45,6 +57,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 viewmodel.login(email, password);
               },
               child: Text('Login'),
+            ),
+            SizedBox(height: 16),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => RegisterScreen(),
+                  ),
+                );
+              },
+              child: Text('Don’t have an account? Register here'),
             ),
           ],
         ),
