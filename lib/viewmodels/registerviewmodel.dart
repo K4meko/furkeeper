@@ -7,6 +7,8 @@ class RegisterViewmodel {
     try {
       await _auth.createUserWithEmailAndPassword(email: email, password: password);
       print('User registered successfully');
+      
+
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         print('The email is already in use.');
