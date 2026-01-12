@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:furkeeper/screens/home_screen.dart';
 import 'package:furkeeper/viewmodels/registerviewmodel.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -98,9 +99,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  void _register() {
+  void _register() async {
     if (_formKey.currentState!.validate()) {
-      viewmodel.register(email, password);
+
+     try{
+      await viewmodel.register(email, password);
+     } 
+     finally{
+       Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreen()));
+     }
     }
   }
 
