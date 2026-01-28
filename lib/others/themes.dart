@@ -10,7 +10,6 @@ class HexColor {
 }
 
 class AppTheme {
-  // LIGHT THEME - Matches your screenshot
   static final ThemeData lightTheme = ThemeData(
     brightness: Brightness.light,
     primaryColor: const Color(0xFFFFB800),           // Yellow button
@@ -23,7 +22,6 @@ class AppTheme {
       primary: Color(0xFFFFB800),
       secondary: Color(0xFF795548),                   // Brown inputs
       surface: Colors.white,
-      background: Color(0xFFFAFAFA),
       error: Color(0xFFD32F2F),
     ),
     scaffoldBackgroundColor: const Color(0xFFFAFAFA),
@@ -36,6 +34,7 @@ class AppTheme {
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFFFFB800),
         foregroundColor: Colors.black,
+        minimumSize: Size.fromHeight(54),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
@@ -88,7 +87,6 @@ class AppTheme {
       primary: Color(0xFFFFD54F),
       secondary: Color(0xFFFFCC80),
       surface: Color(0xFF1C1B1F),
-      background: Color(0xFF121212),
       error: Color(0xFFCF6679),
     ),
     scaffoldBackgroundColor: const Color(0xFF121212),

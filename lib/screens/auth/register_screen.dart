@@ -105,9 +105,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
      try{
       await viewmodel.register(email, password);
      } 
-     finally{
-       Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreen()));
-     }
+      catch(e){
+        final snackBar = SnackBar(content: Text('Registration failed: $e'));
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+        return;
+      }
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => HomeScreen()),
+        );
     }
   }
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:furkeeper/models/pet.dart';
 
 class PetProvider with ChangeNotifier {
-  List<Pet> _pets = [];
+  final List<Pet> _pets = [];
 
   List<Pet> get pets => [..._pets];
 

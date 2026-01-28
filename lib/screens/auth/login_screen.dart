@@ -58,6 +58,15 @@ class _LoginScreenState extends State<LoginScreen> {
               },
               child: Text('Login'),
             ),
+            ValueListenableBuilder(valueListenable: viewmodel.errorMessage, builder: (context, errorMessage, child) {
+                if (errorMessage == null) {
+                  return const SizedBox.shrink(); // Don't show anything if there's no error
+                }
+                return Text(
+                  errorMessage,
+                  style: const TextStyle(color: Colors.red),
+                );
+              },),
             SizedBox(height: 16),
             TextButton(
               onPressed: () {
