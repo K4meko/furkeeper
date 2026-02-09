@@ -1,52 +1,43 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:furkeeper/models/pet.dart';
 import 'package:furkeeper/viewmodels/db.dart';
 
-class HomeScreenViewmodel {
-  HomeScreenViewmodel(){
-    loadPets();
+class PetRow {
+  final String docId;
+  final Pet pet;
+  PetRow({required this.docId, required this.pet});
+}
 
-  }
-  final userPets = db.collection('pets').doc('pets');
-  final ValueNotifier<List<Pet>> pets = ValueNotifier<List<Pet>>([]);
-  final petCount = ValueNotifier<int>(0);
-   Future<void> loadPets() async {
+class HomeScreenViewmodel {
+  final ValueNotifier<List<PetRow>> pets = ValueNotifier<List<PetRow>>([]);
+  final ValueNotifier<int> petCount = ValueNotifier<int>(0);
+
+  Future<void> loadPets() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      pets.value = [];
+      petCount.value = 0;
+      return;
+    }
+
     final snap = await db
+        .collection('users')
+        .doc(user.uid)
         .collection('pets')
-        .orderBy('id') 
+        .orderBy('id')
         .get();
 
-    pets.value = snap.docs
-        .map((doc) => Pet.fromMap(doc.data() as Map<String, dynamic>))
+    final list = snap.docs
+        .map((d) => PetRow(docId: d.id, pet: Pet.fromMap(d.data())))
         .toList();
-  }
-  
-  Future<void> addPet(String name, String type, int age) async {
-    final counterRef = db.collection('_counters').doc('pets');
-   
-   
-  
 
-    await db.runTransaction((transaction) async {
-      final counterSnap = await transaction.get(counterRef); // [web:33]
-
-      final current = (counterSnap.data()?['nextId'] as int?) ?? 0;
-      final nextId = current + 1;
-
-      transaction.set(counterRef, {'nextId': nextId}, SetOptions(merge: true));
-
-      // Create the new pet document with the incremented numeric id.
-      final petRef = db.collection('pets').doc();
-      transaction.set(petRef, {
-        'id': nextId,
-        'name': name,
-        'type': type,
-        'age': age,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    });
+    pets.value = list;
+    petCount.value = list.length;
   }
 
- 
+  void dispose() {
+    pets.dispose();
+    petCount.dispose();
+  }
 }
