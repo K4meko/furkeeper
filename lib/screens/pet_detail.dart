@@ -15,7 +15,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   final _nameCtrl = TextEditingController();
   final _walkNotesCtrl = TextEditingController();
   final _vetNotesCtrl = TextEditingController();
+
   bool _changed = false;
+  bool _editMode = false;
+
   bool _savingName = false;
   bool _loggingWalk = false;
   bool _loggingVet = false;
@@ -47,81 +50,129 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     super.dispose();
   }
 
+  // IMPORTANT: Use block-body setState everywhere to guarantee we never return a Future.
   void _refreshPet() {
-  setState(() {
-    _petFuture = _petRef.get();
-  });
-}
-
-
-Future<void> _saveName() async {  
-  
-  final newName = _nameCtrl.text.trim();
-  if (newName.isEmpty) return;
-
-  setState(() => _savingName = true);
-  try {
-    await _petRef.update({'name': newName});
-    _changed = true;
-    if (!mounted) return;
-    FocusScope.of(context).unfocus();
-    _refreshPet();
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Name updated')));
-  } on FirebaseException catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Failed (${e.code}): ${e.message}')),
-    );
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('Failed: $e')));
-  } finally {
-    if (mounted) setState(() => _savingName = false);
+    setState(() {
+      _petFuture = _petRef.get();
+    });
   }
-}
 
+  void _toggleEditMode() {
+    setState(() {
+      _editMode = !_editMode;
+    });
+    if (!_editMode) FocusScope.of(context).unfocus();
+  }
 
+  Future<void> _saveName() async {
+    final newName = _nameCtrl.text.trim();
+    if (newName.isEmpty) return;
+
+    setState(() {
+      _savingName = true;
+    });
+
+    try {
+      await _petRef.update({'name': newName});
+      _changed = true;
+      if (!mounted) return;
+
+      FocusScope.of(context).unfocus();
+      _refreshPet();
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Name updated')));
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed (${e.code}): ${e.message}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed: $e')));
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _savingName = false;
+      });
+    }
+  }
 
   Future<void> _logWalk() async {
-    setState(() => _loggingWalk = true);
+    final notes = _walkNotesCtrl.text.trim();
+
+    setState(() {
+      _loggingWalk = true;
+    });
+
     try {
       await _walksRef.doc().set({
         'at': FieldValue.serverTimestamp(),
-        'notes': _walkNotesCtrl.text.trim(),
+        'notes': notes,
       });
+
+      _changed = true;
       _walkNotesCtrl.clear();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Walk added')));
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed (${e.code}): ${e.message}')),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Failed to log walk: $e')));
     } finally {
-      if (mounted) setState(() => _loggingWalk = false);
+      if (!mounted) return;
+      setState(() {
+        _loggingWalk = false;
+      });
     }
   }
 
   Future<void> _logVetVisit() async {
-    setState(() => _loggingVet = true);
+    final notes = _vetNotesCtrl.text.trim();
+
+    setState(() {
+      _loggingVet = true;
+    });
+
     try {
       await _vetRef.doc().set({
         'at': FieldValue.serverTimestamp(),
-        'notes': _vetNotesCtrl.text.trim(),
+        'notes': notes,
       });
+
+      _changed = true;
       _vetNotesCtrl.clear();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Vet visit added')));
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed (${e.code}): ${e.message}')),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Failed to log vet visit: $e')));
     } finally {
-      if (mounted) setState(() => _loggingVet = false);
+      if (!mounted) return;
+      setState(() {
+        _loggingVet = false;
+      });
     }
   }
 
   String _formatTimestamp(dynamic ts) {
-    if (ts is Timestamp) {
-      return ts.toDate().toLocal().toString();
-    }
+    if (ts is Timestamp) return ts.toDate().toLocal().toString();
     return '';
   }
 
@@ -137,12 +188,24 @@ Future<void> _saveName() async {
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         appBar: AppBar(
-  title: const Text('Pet details'),
-  leading: BackButton(
-    onPressed: () => Navigator.pop(context, _changed),
-  ),
-),
-
+          title: const Text('Pet details'),
+          leading: BackButton(
+            onPressed: () => Navigator.pop(context, _changed),
+          ),
+          actions: [
+            IconButton(
+              tooltip: _editMode ? 'Done' : 'Edit',
+              icon: Icon(_editMode ? Icons.check : Icons.edit),
+              onPressed: () async {
+                if (_editMode) {
+                  await _saveName();
+                  if (!mounted) return;
+                }
+                _toggleEditMode();
+              },
+            ),
+          ],
+        ),
         body: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           future: _petFuture,
           builder: (context, snap) {
@@ -161,161 +224,168 @@ Future<void> _saveName() async {
             final type = (data['type'] ?? '') as String;
             final age = (data['age'] ?? 0) as num;
 
-            // Only initialize once; never push Firestore values into the controller during rebuilds.
+            // Keep UI consistent when not editing (shows DB value after refresh).
+            if (!_editMode && _nameCtrl.text != name) {
+              _nameCtrl.text = name;
+            }
+            // First load.
             if (_nameCtrl.text.isEmpty) _nameCtrl.text = name;
 
-            return PopScope(
-              canPop: true,
-              onPopInvokedWithResult: (didPop, result){
-               if (didPop && result == null) {
-       Navigator.of(context).pop(_changed);
-}
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text('Type: $type'),
+                Text('Age: ${age.toInt()}'),
+                const SizedBox(height: 16),
 
-                
-              },
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Text('Type: $type'),
-                  Text('Age: ${age.toInt()}'),
-                  const SizedBox(height: 16),
-              
-                  TextField(
-                    controller: _nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Pet name',
-                      border: OutlineInputBorder(),
-                    ),
-                    textInputAction: TextInputAction.done,
-                   onSubmitted: (_) async {
-                    if (_savingName) return;
+                TextField(
+                  controller: _nameCtrl,
+                  readOnly: !_editMode,
+                  decoration: InputDecoration(
+                    labelText: 'Pet name',
+                    border: const OutlineInputBorder(),
+                    helperText: _editMode ? 'Editing enabled' : 'View mode',
+                    suffixIcon: _editMode
+                        ? IconButton(
+                            tooltip: 'Save name',
+                            icon: _savingName
+                                ? const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.save),
+                            onPressed: _savingName
+                                ? null
+                                : () async {
+                                    await _saveName();
+                                  },
+                          )
+                        : null,
+                  ),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) async {
+                    if (!_editMode || _savingName) return;
                     await _saveName();
-              },  
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                const Text('Log a walk'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _walkNotesCtrl,
+                  enabled: _editMode,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes (optional)',
+                    border: OutlineInputBorder(),
                   ),
-                  const SizedBox(height: 8),
-              
-                  FilledButton(
-                    onPressed: _savingName ? null : _saveName,
-                    child: _savingName
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Save name'),
-                  ),
-              
-                  const SizedBox(height: 24),
-                  const Text('Log a walk'),
-                  const SizedBox(height: 8),
-              
-                  TextField(
-                    controller: _walkNotesCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Notes (optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 2,
-                  ),
-                  const SizedBox(height: 8),
-              
-                  FilledButton(
-                    onPressed: _loggingWalk ? null : _logWalk,
-                    child: _loggingWalk
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Add walk'),
-                  ),
-              
-                  const SizedBox(height: 24),
-                  const Text('Log a vet visit'),
-                  const SizedBox(height: 8),
-              
-                  TextField(
-                    controller: _vetNotesCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Notes (optional)',
-                      border: OutlineInputBorder(),
-                    ),
-                    maxLines: 2,
-                  ),
-                  const SizedBox(height: 8),
-              
-                  FilledButton(
-                    onPressed: _loggingVet ? null : _logVetVisit,
-                    child: _loggingVet
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Add vet visit'),
-                  ),
-              
-                  const SizedBox(height: 24),
-                  const Text('Recent walks'),
-                  const SizedBox(height: 8),
-              
-                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: _walksRef
-                        .orderBy('at', descending: true)
-                        .limit(10)
-                        .snapshots(),
-                    builder: (context, s) {
-                      if (s.hasError) return Text('Error: ${s.error}');
-                      if (!s.hasData) return const Text('Loading...');
-                      final docs = s.data!.docs;
-                      if (docs.isEmpty) return const Text('No walks yet');
-              
-                      return ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: docs.length,
-                        itemBuilder: (context, i) {
-                          final d = docs[i].data();
-                          return ListTile(
-                            title: Text((d['notes'] ?? '') as String),
-                            subtitle: Text(_formatTimestamp(d['at'])),
-                          );
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: (!_editMode || _loggingWalk)
+                      ? null
+                      : () async {
+                          await _logWalk();
                         },
-                      );
-                    },
+                  child: _loggingWalk
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Add walk'),
+                ),
+                const SizedBox(height: 24),
+
+                const Text('Log a vet visit'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _vetNotesCtrl,
+                  enabled: _editMode,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes (optional)',
+                    border: OutlineInputBorder(),
                   ),
-              
-                  const SizedBox(height: 24),
-                  const Text('Recent vet visits'),
-                  const SizedBox(height: 8),
-              
-                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: _vetRef
-                        .orderBy('at', descending: true)
-                        .limit(10)
-                        .snapshots(),
-                    builder: (context, s) {
-                      if (s.hasError) return Text('Error: ${s.error}');
-                      if (!s.hasData) return const Text('Loading...');
-                      final docs = s.data!.docs;
-                      if (docs.isEmpty) return const Text('No vet visits yet');
-              
-                      return ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: docs.length,
-                        itemBuilder: (context, i) {
-                          final d = docs[i].data();
-                          return ListTile(
-                            title: Text((d['notes'] ?? '') as String),
-                            subtitle: Text(_formatTimestamp(d['at'])),
-                          );
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: (!_editMode || _loggingVet)
+                      ? null
+                      : () async {
+                          await _logVetVisit();
                         },
-                      );
-                    },
-                  ),
-                ],
-              ),
+                  child: _loggingVet
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Add vet visit'),
+                ),
+                const SizedBox(height: 24),
+
+                const Text('Recent walks'),
+                const SizedBox(height: 8),
+                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _walksRef
+                      .orderBy('at', descending: true)
+                      .limit(10)
+                      .snapshots(),
+                  builder: (context, s) {
+                    if (s.hasError) return Text('Error: ${s.error}');
+                    if (!s.hasData) return const Text('Loading...');
+                    final docs = s.data!.docs;
+                    if (docs.isEmpty) return const Text('No walks yet');
+
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: docs.length,
+                      itemBuilder: (context, i) {
+                        final d = docs[i].data();
+                        return ListTile(
+                          title: Text((d['notes'] ?? '') as String),
+                          subtitle: Text(_formatTimestamp(d['at'])),
+                        );
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                const Text('Recent vet visits'),
+                const SizedBox(height: 8),
+                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _vetRef
+                      .orderBy('at', descending: true)
+                      .limit(10)
+                      .snapshots(),
+                  builder: (context, s) {
+                    if (s.hasError) return Text('Error: ${s.error}');
+                    if (!s.hasData) return const Text('Loading...');
+                    final docs = s.data!.docs;
+                    if (docs.isEmpty) return const Text('No vet visits yet');
+
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: docs.length,
+                      itemBuilder: (context, i) {
+                        final d = docs[i].data();
+                        return ListTile(
+                          title: Text((d['notes'] ?? '') as String),
+                          subtitle: Text(_formatTimestamp(d['at'])),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
             );
           },
         ),
