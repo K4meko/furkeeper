@@ -52,16 +52,20 @@ class _HomeScreenState extends State<HomeScreen> {
               // ElevatedButton(onPressed: logout, child: const Text('Logout')),
               // const Spacer(),
               for( var i in viewmodel.pets.value.reversed) 
-              InkWell(child: PetListItem(animalName: i.pet.name, animalType: i.pet.type, animalAge: i.pet.age),  onTap: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PetDetailScreen(
-            petDocId: i.docId 
-          ),
-        ),
-      );
-    }, )
+              InkWell(child: PetListItem(animalName: i.pet.name, animalType: i.pet.type, animalAge: i.pet.age),  onTap: () async {
+  final changed = await Navigator.push<bool>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => PetDetailScreen(petDocId: i.docId),
+    ),
+  );
+
+  if (changed == true) {
+    await viewmodel.loadPets();
+  }
+},
+
+ )
               
           ]);
         }
