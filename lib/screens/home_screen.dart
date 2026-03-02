@@ -14,7 +14,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late final viewmodel = HomeScreenViewmodel();
+  late final HomeScreenViewmodel viewmodel = HomeScreenViewmodel();
 
   @override
   void initState() {
@@ -24,13 +24,33 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void logout() => FirebaseAuth.instance.signOut();
 
+  Future<void> _openAddPet() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const AddPetScreen()),
+    );
+
+    if (changed == true) {
+      await viewmodel.loadPets();
+    }
+  }
+
+  Future<void> _openPetDetail(String docId) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => PetDetailScreen(petDocId: docId)),
+    );
+
+    if (changed == true) {
+      await viewmodel.loadPets();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Home')),
-
-      // Put a Row into the single FAB slot
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat, // centered area so row can span [web:32]
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat, // supported Scaffold location [web:20]
       floatingActionButton: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
@@ -40,56 +60,40 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: logout,
               icon: const Icon(Icons.logout, size: 35),
               tooltip: 'Logout',
-            ), // IconButton.filled is a Material 3 filled icon button [web:31]
-
+            ), // filled variant exists in Material 3 [web:22]
             IconButton.filled(
-              onPressed: () async {
-                final changed = await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AddPetScreen()),
-                );
-
-                if (changed == true) {
-                  await viewmodel.loadPets();
-                }
-              },
+              onPressed: _openAddPet,
               icon: const Icon(Icons.add, size: 35),
               tooltip: 'Add pet',
-            ), // IconButton.filled [web:31]
+            ), // filled variant exists in Material 3 [web:22]
           ],
         ),
       ),
-
       body: ValueListenableBuilder<List<PetRow>>(
         valueListenable: viewmodel.pets,
-        builder: (context, count, _) {
-          return Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              for (var i in viewmodel.pets.value.reversed)
-                InkWell(
-                  child: PetListItem(
-                    animalName: i.pet.name,
-                    animalType: i.pet.type,
-                    animalAge: i.pet.age,
-                  ),
-                  onTap: () async {
-                    final changed = await Navigator.push<bool>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PetDetailScreen(petDocId: i.docId),
-                      ),
-                    );
+        builder: (context, pets, _) {
+          if (pets.isEmpty) {
+            return const Center(
+              child: Text('No pets yet'),
+            );
+          }
 
-                    if (changed == true) {
-                      await viewmodel.loadPets();
-                    }
-                  },
-                )
+          return ListView(
+            padding: const EdgeInsets.only(bottom: 96),
+            children: [
+              for (final row in pets.reversed)
+                InkWell(
+                  onTap: () => _openPetDetail(row.docId),
+                  child: PetListItem(
+                    animalName: row.pet.name,
+                    animalType: row.pet.type,
+                    animalAge: row.pet.age,
+                  ),
+                ),
             ],
           );
         },
-      ),
+      ), // ValueListenableBuilder rebuilds when the ValueListenable changes [web:14]
     );
   }
 
