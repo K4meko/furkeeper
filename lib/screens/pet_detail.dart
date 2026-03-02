@@ -22,6 +22,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   bool _savingName = false;
   bool _loggingWalk = false;
   bool _loggingVet = false;
+  bool _deleting = false;
 
   Future<DocumentSnapshot<Map<String, dynamic>>>? _petFuture;
 
@@ -50,7 +51,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     super.dispose();
   }
 
-  // IMPORTANT: Use block-body setState everywhere to guarantee we never return a Future.
   void _refreshPet() {
     setState(() {
       _petFuture = _petRef.get();
@@ -171,10 +171,80 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     }
   }
 
+  Future<void> _deleteSubcollection(
+    CollectionReference<Map<String, dynamic>> col, {
+    int batchSize = 200,
+  }) async {
+    while (true) {
+      final snap = await col.limit(batchSize).get();
+      if (snap.docs.isEmpty) break;
+
+      final batch = FirebaseFirestore.instance.batch();
+      for (final d in snap.docs) {
+        batch.delete(d.reference);
+      }
+      await batch.commit();
+    }
+  }
+
+  Future<void> _deletePet() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete pet?'),
+        content: const Text('This will delete the pet and its logs.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (ok != true) return;
+
+    setState(() {
+      _deleting = true;
+    });
+
+    try {
+      // Firestore does not cascade deletes to subcollections, so delete them manually. [web:175][web:181]
+      await _deleteSubcollection(_walksRef);
+      await _deleteSubcollection(_vetRef);
+      await _petRef.delete();
+
+      _changed = true;
+      if (!mounted) return;
+      Navigator.pop(context, true); // return "changed" to HomeScreen. [web:191]
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Delete failed (${e.code}): ${e.message}')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _deleting = false;
+      });
+    }
+  }
+
   String _formatTimestamp(dynamic ts) {
     if (ts is Timestamp) return ts.toDate().toLocal().toString();
     return '';
   }
+
+  bool get _busy =>
+      _savingName || _loggingWalk || _loggingVet || _deleting;
 
   @override
   Widget build(BuildContext context) {
@@ -193,16 +263,33 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             onPressed: () => Navigator.pop(context, _changed),
           ),
           actions: [
+            if (_editMode)
+              IconButton(
+                tooltip: 'Delete pet',
+                icon: _deleting
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete),
+                onPressed: (_busy && !_deleting) ? null : () async {
+                  if (_deleting) return;
+                  await _deletePet();
+                },
+              ),
             IconButton(
               tooltip: _editMode ? 'Done' : 'Edit',
               icon: Icon(_editMode ? Icons.check : Icons.edit),
-              onPressed: () async {
-                if (_editMode) {
-                  await _saveName();
-                  if (!mounted) return;
-                }
-                _toggleEditMode();
-              },
+              onPressed: _deleting
+                  ? null
+                  : () async {
+                      if (_editMode) {
+                        await _saveName();
+                        if (!mounted) return;
+                      }
+                      _toggleEditMode();
+                    },
             ),
           ],
         ),
@@ -228,7 +315,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             if (!_editMode && _nameCtrl.text != name) {
               _nameCtrl.text = name;
             }
-            // First load.
             if (_nameCtrl.text.isEmpty) _nameCtrl.text = name;
 
             return ListView(
@@ -241,33 +327,15 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 TextField(
                   controller: _nameCtrl,
                   readOnly: !_editMode,
-                  decoration: InputDecoration(
-                    labelText: 'Pet name',
-                    border: const OutlineInputBorder(),
-                    helperText: _editMode ? 'Editing enabled' : 'View mode',
-                    suffixIcon: _editMode
-                        ? IconButton(
-                            tooltip: 'Save name',
-                            icon: _savingName
-                                ? const SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.save),
-                            onPressed: _savingName
-                                ? null
-                                : () async {
-                                    await _saveName();
-                                  },
-                          )
-                        : null,
-                  ),
+                  // decoration: InputDecoration(
+                  //   labelText: 'Pet name',
+                  //   border: const OutlineInputBorder(),
+                  //   helperText: _editMode ? 'Editing enabled' : 'View mode',
+                     
+                  // ),
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) async {
-                    if (!_editMode || _savingName) return;
+                    if (!_editMode || _savingName || _deleting) return;
                     await _saveName();
                   },
                 ),
@@ -277,7 +345,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: _walkNotesCtrl,
-                  enabled: _editMode,
+                  enabled: _editMode && !_deleting,
                   decoration: const InputDecoration(
                     labelText: 'Notes (optional)',
                     border: OutlineInputBorder(),
@@ -286,7 +354,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 ),
                 const SizedBox(height: 8),
                 FilledButton(
-                  onPressed: (!_editMode || _loggingWalk)
+                  onPressed: (!_editMode || _loggingWalk || _deleting)
                       ? null
                       : () async {
                           await _logWalk();
@@ -305,7 +373,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: _vetNotesCtrl,
-                  enabled: _editMode,
+                  enabled: _editMode && !_deleting,
                   decoration: const InputDecoration(
                     labelText: 'Notes (optional)',
                     border: OutlineInputBorder(),
@@ -314,7 +382,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 ),
                 const SizedBox(height: 8),
                 FilledButton(
-                  onPressed: (!_editMode || _loggingVet)
+                  onPressed: (!_editMode || _loggingVet || _deleting)
                       ? null
                       : () async {
                           await _logVetVisit();
