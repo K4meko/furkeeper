@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:furkeeper/others/notificaton_service.dart';
 import 'package:furkeeper/viewmodels/db.dart';
 
 class PetDetailScreen extends StatefulWidget {
@@ -15,6 +16,8 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   final _nameCtrl = TextEditingController();
   final _walkNotesCtrl = TextEditingController();
   final _vetNotesCtrl = TextEditingController();
+
+  DateTime _selectedVetDate = DateTime.now();
 
   bool _changed = false;
   bool _editMode = false;
@@ -62,6 +65,21 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       _editMode = !_editMode;
     });
     if (!_editMode) FocusScope.of(context).unfocus();
+  }
+
+  // NEW: Method to show the date picker
+  Future<void> _pickVetDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedVetDate,
+      firstDate: DateTime(2000), // Allow past dates for logging history
+      lastDate: DateTime(2100),  // Allow future dates for scheduling
+    );
+    if (picked != null && picked != _selectedVetDate) {
+      setState(() {
+        _selectedVetDate = picked;
+      });
+    }
   }
 
   Future<void> _saveName() async {
@@ -135,8 +153,9 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     }
   }
 
-  Future<void> _logVetVisit() async {
+    Future<void> _logVetVisit() async {
     final notes = _vetNotesCtrl.text.trim();
+    final petName = _nameCtrl.text.trim(); // Grab the pet's name for the alert
 
     setState(() {
       _loggingVet = true;
@@ -144,16 +163,37 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
 
     try {
       await _vetRef.doc().set({
-        'at': FieldValue.serverTimestamp(),
+        'at': Timestamp.fromDate(_selectedVetDate),
         'notes': notes,
       });
 
+      //final notifyTime = DateTime.now().add(const Duration(seconds: 10));
+       final notifyTime = _selectedVetDate.subtract(const Duration(days: 1));
+
+      
+      if (notifyTime.isAfter(DateTime.now())) {
+       
+        final notificationId = DateTime.now().millisecondsSinceEpoch.remainder(100000);
+        
+        await NotificationService.scheduleNotification(
+          id: notificationId,
+          title: 'Upcoming Vet Visit for ${petName.isEmpty ? 'your pet' : petName}',
+          body: 'Reminder: $notes is scheduled for tomorrow!',
+          scheduledDate: notifyTime,
+        );
+      }
+      // ----------------------------------
+
       _changed = true;
       _vetNotesCtrl.clear();
+      
+      setState(() {
+        _selectedVetDate = DateTime.now();
+      });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Vet visit added')));
+          .showSnackBar(const SnackBar(content: Text('Vet visit added & reminder set')));
     } on FirebaseException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -170,6 +210,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
       });
     }
   }
+
 
   Future<void> _deleteSubcollection(
     CollectionReference<Map<String, dynamic>> col, {
@@ -213,19 +254,18 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
     });
 
     try {
-      // Firestore does not cascade deletes to subcollections, so delete them manually. [web:175][web:181]
       await _deleteSubcollection(_walksRef);
       await _deleteSubcollection(_vetRef);
       await _petRef.delete();
 
       _changed = true;
       if (!mounted) return;
-      Navigator.pop(context, true); // return "changed" to HomeScreen. [web:191]
+      Navigator.pop(context, true); 
     } on FirebaseException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Delete failed (${e.code}): ${e.message}')),
-      );
+      ); 
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -239,7 +279,10 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
   }
 
   String _formatTimestamp(dynamic ts) {
-    if (ts is Timestamp) return ts.toDate().toLocal().toString();
+    if (ts is Timestamp) {
+     
+      return ts.toDate().toLocal().toString().split('.')[0];
+    }
     return '';
   }
 
@@ -311,7 +354,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
             final type = (data['type'] ?? '') as String;
             final age = (data['age'] ?? 0) as num;
 
-            // Keep UI consistent when not editing (shows DB value after refresh).
             if (!_editMode && _nameCtrl.text != name) {
               _nameCtrl.text = name;
             }
@@ -327,12 +369,6 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 TextField(
                   controller: _nameCtrl,
                   readOnly: !_editMode,
-                  // decoration: InputDecoration(
-                  //   labelText: 'Pet name',
-                  //   border: const OutlineInputBorder(),
-                  //   helperText: _editMode ? 'Editing enabled' : 'View mode',
-                     
-                  // ),
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) async {
                     if (!_editMode || _savingName || _deleting) return;
@@ -341,7 +377,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                const Text('Log a walk'),
+                const Text('Log a walk', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _walkNotesCtrl,
@@ -369,17 +405,36 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                const Text('Log a vet visit'),
+                const Text('Log a vet visit / Schedule', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _vetNotesCtrl,
                   enabled: _editMode && !_deleting,
                   decoration: const InputDecoration(
-                    labelText: 'Notes (optional)',
+                    labelText: 'Notes (e.g., Upcoming Vaccination)',
                     border: OutlineInputBorder(),
                   ),
                   maxLines: 2,
                 ),
+                const SizedBox(height: 8),
+                
+                
+                if (_editMode && !_deleting)
+                  Row(
+                    children: [
+                      Text(
+                        'Date: ${_selectedVetDate.toLocal().toString().split(' ')[0]}',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: _pickVetDate,
+                        icon: const Icon(Icons.calendar_month),
+                        label: const Text('Change Date'),
+                      ),
+                    ],
+                  ),
+                
                 const SizedBox(height: 8),
                 FilledButton(
                   onPressed: (!_editMode || _loggingVet || _deleting)
@@ -393,11 +448,11 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Add vet visit'),
+                      : const Text('Save vet visit'),
                 ),
                 const SizedBox(height: 24),
 
-                const Text('Recent walks'),
+                const Text('Recent walks', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: _walksRef
@@ -426,11 +481,11 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                const Text('Recent vet visits'),
+                const Text('Vet visits (Past & Upcoming)', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: _vetRef
-                      .orderBy('at', descending: true)
+                      .orderBy('at', descending: true) // Will show future dates at the top
                       .limit(10)
                       .snapshots(),
                   builder: (context, s) {
@@ -448,6 +503,7 @@ class _PetDetailScreenState extends State<PetDetailScreen> {
                         return ListTile(
                           title: Text((d['notes'] ?? '') as String),
                           subtitle: Text(_formatTimestamp(d['at'])),
+                          leading: const Icon(Icons.medical_services_outlined),
                         );
                       },
                     );

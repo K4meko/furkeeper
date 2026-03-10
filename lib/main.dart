@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:furkeeper/others/notificaton_service.dart';
 import 'package:furkeeper/others/themes.dart';
 import 'package:furkeeper/providers/pet_provider.dart';
 import 'package:furkeeper/screens/auth/authwrapper.dart';
@@ -15,7 +16,7 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
+  await NotificationService.init();
   runApp(
     MultiProvider(
       providers: [

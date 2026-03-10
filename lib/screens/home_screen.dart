@@ -4,6 +4,7 @@ import 'package:furkeeper/models/pet.dart';
 import 'package:furkeeper/screens/add_pet_screen.dart';
 import 'package:furkeeper/screens/components/pet_list_item.dart';
 import 'package:furkeeper/screens/pet_detail.dart';
+import 'package:furkeeper/screens/user_screen.dart';
 import 'package:furkeeper/viewmodels/homescreenviewmodel.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -22,7 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
     viewmodel.loadPets();
   }
 
-  void logout() => FirebaseAuth.instance.signOut();
+  //void logout() => FirebaseAuth.instance.signOut();
 
   Future<void> _openAddPet() async {
     final changed = await Navigator.push<bool>(
@@ -57,7 +58,14 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             IconButton.filled(
-              onPressed: logout,
+              onPressed: () async {{
+
+  if (!context.mounted) return; 
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const UserScreen()),
+    (route) => false,
+  );
+}},
               icon: const Icon(Icons.logout, size: 35),
               tooltip: 'Logout',
             ), // filled variant exists in Material 3 [web:22]
