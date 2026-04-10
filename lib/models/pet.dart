@@ -1,4 +1,6 @@
 class Pet {
+final String? breed;
+
   final int id;
   final String name;
   final String type;
@@ -13,37 +15,42 @@ class Pet {
     required this.type,
     required this.age,
     required this.animalType,
-    this.subType,
+    required this.subType,
+    this.breed,
+
   });
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'name': name,
-      'type': type,
-      'age': age,
-    };
-  }
+Map<String, dynamic> toMap() => {
+  'id': id,
+  'name': name,
+  'type': type,
+  'age': age,
+  'animalType': animalType.name,
+  if (subType != null) 'subType': _enumName(subType),
+  if (breed != null) 'breed': breed,
+};
+static String _enumName(dynamic e) => e.toString().split('.').last;
 
-  factory Pet.fromMap(Map<String, dynamic> data) {
-    final id = (data['id'] as num).toInt();
-    final name = (data['name'] as String?) ?? '';
-    final typeRaw = (data['type'] as String?) ?? '';
-    final age = (data['age'] as num).toInt();
+ factory Pet.fromMap(Map<String, dynamic> data) {
+  final id = (data['id'] as num).toInt();
+  final name = (data['name'] as String?) ?? '';
+  final typeRaw = (data['type'] as String?) ?? '';
+  final age = (data['age'] as num).toInt();
 
-    final typeKey = _normalizeTypeKey(typeRaw);
-    final animalType = _animalTypeFromType(typeKey);
-    final subType = _subTypeFromType(animalType, typeKey);
+  final typeKey = _normalizeTypeKey(typeRaw);
+  final animalType = _animalTypeFromType(typeKey);
+  final subType = _subTypeFromType(animalType, typeKey);
 
-    return Pet(
-      id: id,
-      name: name,
-      type: typeKey,
-      age: age,
-      animalType: animalType,
-      subType: subType,
-    );
-  }
+  return Pet(
+    id: id,
+    name: name,
+    type: typeKey,
+    age: age,
+    animalType: animalType,
+    subType: subType,
+    breed: data['breed'] as String?,  // ← restore breed
+  );
+}
 
   static String _normalizeTypeKey(String input) {
     final s = input.trim();

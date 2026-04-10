@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:furkeeper/models/pet.dart';
 import 'package:furkeeper/models/petservice.dart';
 
-
 class AddPetScreen extends StatefulWidget {
   const AddPetScreen({super.key});
 
@@ -17,8 +16,29 @@ class _AddPetScreenState extends State<AddPetScreen> {
   final _nameCtrl = TextEditingController();
   final _ageCtrl = TextEditingController();
 
-  AnimalType? _animalType; // first dropdown
-  String? _type; // second dropdown (enum .name), e.g. "dog"
+  AnimalType? _animalType;
+  String? _type;
+  String? _breed; // ← new
+
+  // Common dog breeds — extend as needed
+  static const _dogBreeds = [
+    'Labrador Retriever',
+    'German Shepherd',
+    'Golden Retriever',
+    'French Bulldog',
+    'Bulldog',
+    'Poodle',
+    'Beagle',
+    'Rottweiler',
+    'Yorkshire Terrier',
+    'Dachshund',
+    'Siberian Husky',
+    'Shih Tzu',
+    'Chihuahua',
+    'Boxer',
+    'Border Collie',
+    'Mixed / Other',
+  ];
 
   bool _saving = false;
 
@@ -44,7 +64,6 @@ class _AddPetScreenState extends State<AddPetScreen> {
   }
 
   dynamic _subTypeFor(AnimalType animalType, String typeStr) {
-    // typeStr is enum name like "dog", "parrot", ...
     switch (animalType) {
       case AnimalType.mammal:
         return MammalType.values.byName(typeStr);
@@ -57,20 +76,18 @@ class _AddPetScreenState extends State<AddPetScreen> {
     }
   }
 
+  bool get _isDog => _type == 'dog';
+
   Future<int> _getNextPetId() async {
-    // Same counter-document approach as before (true autoincrement).
     final db = FirebaseFirestore.instance;
     final counterRef = db.collection('meta').doc('pets');
 
     return db.runTransaction<int>((tx) async {
       final snap = await tx.get(counterRef);
-
       if (!snap.exists) {
-        // If you already have 1..3, initialize this doc once to nextId=4.
         tx.set(counterRef, {'nextId': 5}, SetOptions(merge: true));
         return 4;
       }
-
       final current = (snap.data()!['nextId'] as num).toInt();
       tx.update(counterRef, {'nextId': current + 1});
       return current;
@@ -82,7 +99,7 @@ class _AddPetScreenState extends State<AddPetScreen> {
     if (!ok) return;
 
     final animalType = _animalType!;
-    final typeStr = _type!; // already enum name
+    final typeStr = _type!;
     final id = await _getNextPetId();
 
     final pet = Pet(
@@ -92,17 +109,11 @@ class _AddPetScreenState extends State<AddPetScreen> {
       age: int.parse(_ageCtrl.text.trim()),
       animalType: animalType,
       subType: _subTypeFor(animalType, typeStr),
+      breed: _isDog ? _breed : null, // ← pass breed only for dogs
     );
 
     setState(() => _saving = true);
     try {
-     
-      // await FirebaseFirestore.instance
-      //     .collection('pets')
-      //     .doc(pet.id.toString())
-      //     .set(pet.toMap());
-
-      // if (!mounted) return;
       await petService.savePetForCurrentUser(pet.toMap());
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -176,7 +187,8 @@ class _AddPetScreenState extends State<AddPetScreen> {
                   onChanged: (v) {
                     setState(() {
                       _animalType = v;
-                      _type = null; // reset subtype when animal type changes
+                      _type = null;
+                      _breed = null; // reset breed when animal type changes
                     });
                   },
                   validator: (v) => v == null ? 'Pick an animal type' : null,
@@ -197,14 +209,54 @@ class _AddPetScreenState extends State<AddPetScreen> {
                       .toList(),
                   onChanged: _animalType == null
                       ? null
-                      : (v) => setState(() => _type = v),
+                      : (v) => setState(() {
+                            _type = v;
+                            _breed = null; // reset breed if subtype changes
+                          }),
                   validator: (v) {
                     if (_animalType == null) return 'Pick animal type first';
                     if (v == null || v.isEmpty) return 'Pick a subtype';
                     return null;
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+
+               AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: child,
+                ),
+                child: _isDog
+                    ? Column(
+                        key: const ValueKey('breed-field'),
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 4), // breathing room for the floating label
+                          DropdownButtonFormField<String>(
+                            value: _breed,
+                            decoration: const InputDecoration(
+                              labelText: 'Breed',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: _dogBreeds
+                                .map((b) => DropdownMenuItem(
+                                      value: b,
+                                      child: Text(b),
+                                    ))
+                                .toList(),
+                            onChanged: (v) => setState(() => _breed = v),
+                            validator: (v) {
+                              if (!_isDog) return null;
+                              if (v == null || v.isEmpty) return 'Pick a breed';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      )
+                    : const SizedBox.shrink(key: ValueKey('no-breed')),
+              ),
 
                 SizedBox(
                   width: double.infinity,
